@@ -1,0 +1,14 @@
+#!/bin/bash
+# total ranks
+tot_ranks=0
+for i in `cat $PBS_NODEFILE | uniq -c | awk '{print $1}'`; do tot_ranks="$((tot_ranks+i))"; done
+# ranks per node
+ranks_per_node=`cat $PBS_NODEFILE | uniq -c | awk '{print $1}' | head -n1`
+if [ $LMOD_FAMILY_MPI == "cray-mpich" ]; then
+  mpiexec -n $tot_ranks -ppn $ranks_per_node --cpu-bind none $*
+elif [ $LMOD_FAMILY_MPI == "openmpi" ]; then
+  mpiexec -np $tot_ranks --map-by ppr:$ranks_per_node:node --bind-to none $*
+else
+  >&2 echo "Error: mpibind requires either cray-mpich or openmpi"
+  exit 1
+fi  
