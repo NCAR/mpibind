@@ -1,5 +1,5 @@
 # mpibind
-## MPI binding utilities for NCAR Gust system
+## MPI binding utilities for the NCAR Gust system
 The mpibind utilities are a set of universal tools for binding hybrid MPI + OpenMP applications. They support a "naked" MPI launch style where all relevant rank and thread layout information is taken from the PBS select statement, and not required on the mpiexec line. They are also MPI library agnostic and support the same launch syntax between Cray-MPICH and OpenMPI.
 
 ## Usage
