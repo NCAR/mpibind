@@ -3,7 +3,11 @@ parse_chunk () {
         chunk=$1
 	nodes_in_chunk=`echo $chunk | sed "s/^\([0-9]\+\).*/\1/"`
         mpi_per_node=`echo $chunk | sed "s/.*mpiprocs=\([0-9]\+\).*/\1/"`
-	omp_per_node=`echo $chunk | sed "s/.*ompthreads=\([0-9]\+\).*/\1/"`
+	if [[ $(echo $chunk | grep ompthreads) ]]; then
+	   omp_per_node=`echo $chunk | sed "s/.*ompthreads=\([0-9]\+\).*/\1/"`
+	else
+	   omp_per_node=1
+        fi
 	tot_mpi=$((nodes_in_chunk*mpi_per_node))
 	if [ $LMOD_FAMILY_MPI == "cray-mpich" ]; then
            printf "%s" "-n $tot_mpi -ppn $mpi_per_node --cpu-bind none -env OMP_NUM_THREADS=$omp_per_node "
