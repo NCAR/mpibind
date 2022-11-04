@@ -1,14 +1,26 @@
 #!/bin/bash
-# total ranks
-tot_ranks=0
-for i in `cat $PBS_NODEFILE | uniq -c | awk '{print $1}'`; do tot_ranks="$((tot_ranks+i))"; done
-# ranks per node
-ranks_per_node=`cat $PBS_NODEFILE | uniq -c | awk '{print $1}' | head -n1`
-if [ $LMOD_FAMILY_MPI == "cray-mpich" ]; then
-  mpiexec -n $tot_ranks -ppn $ranks_per_node --cpu-bind none $*
-elif [ $LMOD_FAMILY_MPI == "openmpi" ]; then
-  mpiexec -np $tot_ranks --map-by ppr:$ranks_per_node:node --bind-to none $*
-else
-  >&2 echo "Error: mpibind requires either cray-mpich or openmpi"
-  exit 1
-fi  
+parse_chunk () {
+        chunk=$1
+	nodes_in_chunk=`echo $chunk | sed "s/^\([0-9]\+\).*/\1/"`
+        mpi_per_node=`echo $chunk | sed "s/.*mpiprocs=\([0-9]\+\).*/\1/"`
+	omp_per_node=`echo $chunk | sed "s/.*ompthreads=\([0-9]\+\).*/\1/"`
+	tot_mpi=$((nodes_in_chunk*mpi_per_node))
+	printf "%s" "-n $tot_mpi -ppn $mpi_per_node --cpu-bind none -env OMP_NUM_THREADS=$omp_per_node "
+}
+
+args=$*
+pbs_job_id=$(ps -o comm= $PPID | awk '{split($0,a,".");print a[1]}')
+select_line=`qstat -w -xf $pbs_job_id | grep "select" | awk '{print $3}'`
+chunks=`echo $select_line | awk '{split($0,a,"+")} END {for (elem in a) {print a[elem] } }'`
+mpicmd="mpiexec "
+echo "Chunk info" > mpibind.log
+for c in $chunks; do
+   echo "  $c" >> mpibind.log
+   mpicmd+=`parse_chunk $c`
+   mpicmd+="$args : "
+done
+mpicmd=`echo "$mpicmd" | sed "s/: $//"`
+echo "-- -- -- --" >> mpibind.log
+echo "MPI exec line:" >> mpibind.log
+echo "  $mpicmd" >> mpibind.log
+$mpicmd
