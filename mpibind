@@ -5,7 +5,14 @@ parse_chunk () {
         mpi_per_node=`echo $chunk | sed "s/.*mpiprocs=\([0-9]\+\).*/\1/"`
 	omp_per_node=`echo $chunk | sed "s/.*ompthreads=\([0-9]\+\).*/\1/"`
 	tot_mpi=$((nodes_in_chunk*mpi_per_node))
-	printf "%s" "-n $tot_mpi -ppn $mpi_per_node --cpu-bind none -env OMP_NUM_THREADS=$omp_per_node "
+	if [ $LMOD_FAMILY_MPI == "cray-mpich" ]; then
+           printf "%s" "-n $tot_mpi -ppn $mpi_per_node --cpu-bind none -env OMP_NUM_THREADS=$omp_per_node "
+        elif [ $LMOD_FAMILY_MPI == "openmpi" ]; then
+           printf "%s" "-np $tot_mpi --map-by ppr:$mpi_per_node:node --bind-to none --oversubscribe -x OMP_NUM_THREADS=$omp_per_node "
+        else
+           >&2 echo "Error: mpibind requires either cray-mpich or openmpi"
+           exit 1
+        fi
 }
 
 args=$*
