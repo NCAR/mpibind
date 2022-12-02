@@ -17,7 +17,6 @@ fi
 nthds=$OMP_NUM_THREADS
 nsock=`lscpu | grep Socket | awk '{print $2}'`
 cpsock=`lscpu | grep "per sock" | awk '{print $4}'`
-rank_per_sock=$((lsize/nsock))
 rank_per_sock=$((lsize/nsock + (lsize%nsock)))
 thrd_per_sock=$((rank_per_sock*nthds))
 s0ranges=()
