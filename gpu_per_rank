@@ -1,0 +1,24 @@
+#!/bin/bash
+
+if [ $LMOD_FAMILY_MPI == "cray-mpich" ]; then
+  lrank=$PMI_LOCAL_RANK
+  lsize=$PMI_LOCAL_SIZE
+elif [ $LMOD_FAMILY_MPI == "openmpi" ]; then
+  lrank=$OMPI_COMM_WORLD_LOCAL_RANK
+  lsize=$OMPI_COMM_WORLD_LOCAL_SIZE
+else
+  >&2 echo "Error: mpibind gpu_per_rank requires either cray-mpich or openmpi"
+  exit 2
+fi
+
+export CUDA_VISIBLE_DEVICES=$((lrank % 4))
+
+nsock=`lscpu | grep Socket | awk '{print $2}'`
+cpsock=`lscpu | grep "per sock" | awk '{print $4}'`
+rank_per_sock=$((lsize/nsock + (lsize%nsock)))
+cores=()
+for i in `seq 0 $((cpsock/rank_per_sock)) $((cpsock - 1))`; do
+	echo $i >> i.out
+	cores+=("$i")
+done
+numactl -C "${cores[lrank]}" $*
