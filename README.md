@@ -16,6 +16,11 @@ Additional binding information will be written to a logfile (mpibind.log) in the
 
    Splits MPI ranks as evenly as possible between sockets, and binds threads compactly to adjacent CPUs.
 
+2. gpu_per_rank
+    
+   Spreads MPI ranks between NUMA domains on the socket and sets CUDA_VISIBLE_DEVICES to that each rank 
+   is associated with a unique GPU. Assumes 1:1 mapping between ranks and GPUs.
+
 ### Example PBS script
 
 ```shell
