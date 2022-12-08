@@ -34,4 +34,6 @@ mpicmd=`echo "$mpicmd" | sed "s/: $//"`
 echo "-- -- -- --" >> mpibind.log
 echo "MPI exec line:" >> mpibind.log
 echo "  $mpicmd" >> mpibind.log
+echo "-- -- -- --" >> mpibind.log
+echo "Binding Report:" >> mpibind.log
 $mpicmd

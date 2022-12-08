@@ -1,9 +1,12 @@
 #!/bin/bash
 
 if [ $LMOD_FAMILY_MPI == "cray-mpich" ]; then
+  export MPICH_GPU_SUPPORT_ENABLED=1
+  grank=$PMI_RANK
   lrank=$PMI_LOCAL_RANK
   lsize=$PMI_LOCAL_SIZE
 elif [ $LMOD_FAMILY_MPI == "openmpi" ]; then
+  grank=$OMPI_COMM_WORLD_RANK
   lrank=$OMPI_COMM_WORLD_LOCAL_RANK
   lsize=$OMPI_COMM_WORLD_LOCAL_SIZE
 else
@@ -18,7 +21,7 @@ cpsock=`lscpu | grep "per sock" | awk '{print $4}'`
 rank_per_sock=$((lsize/nsock + (lsize%nsock)))
 cores=()
 for i in `seq 0 $((cpsock/rank_per_sock)) $((cpsock - 1))`; do
-	echo $i >> i.out
 	cores+=("$i")
 done
+echo "rank: $grank, cores: ${cores[lrank]}, CUDA DEVICE: $CUDA_VISIBLE_DEVICES" >> mpibind.log
 numactl -C "${cores[lrank]}" $*
