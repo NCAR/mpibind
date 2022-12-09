@@ -21,7 +21,7 @@ parse_chunk () {
 
 args=$*
 pbs_job_id=$(ps -o comm= $PPID | awk '{split($0,a,".");print a[1]}')
-select_line=`qstat -w -xf $pbs_job_id | grep "select" | awk '{print $3}'`
+select_line=$PBS_SELECT
 chunks=`echo $select_line | awk '{split($0,a,"+")} END {for (elem in a) {print a[elem] } }'`
 mpicmd="mpiexec "
 echo "Chunk info" > mpibind.log
@@ -37,3 +37,5 @@ echo "  $mpicmd" >> mpibind.log
 echo "-- -- -- --" >> mpibind.log
 echo "Binding Report:" >> mpibind.log
 $mpicmd
+cat $TMPDIR/mpibind.log.*.tmp | sort -g -k 2 >> mpibind.log
+rm $TMPDIR/mpibind.log.*.tmp

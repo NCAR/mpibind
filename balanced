@@ -1,9 +1,11 @@
 #!/bin/bash
 
 if [ $LMOD_FAMILY_MPI == "cray-mpich" ]; then
+  grank=$PMI_RANK
   lrank=$PMI_LOCAL_RANK
   lsize=$PMI_LOCAL_SIZE
 elif [ $LMOD_FAMILY_MPI == "openmpi" ]; then
+  grank=$OMPI_COMM_WORLD_RANK
   lrank=$OMPI_COMM_WORLD_LOCAL_RANK
   lsize=$OMPI_COMM_WORLD_LOCAL_SIZE
 else
@@ -26,4 +28,5 @@ for i in `seq 0 $nthds $((thrd_per_sock - 1))`; do
 	s1ranges+=("$((i+cpsock))-$((i+cpsock+nthds-1))")
 done
 ranges=("${s0ranges[@]}" "${s1ranges[@]}")
+echo "rank: $grank, cores: ${ranges[lrank]}" > $TMPDIR/mpibind.log.$grank.tmp
 numactl -C "${ranges[lrank]}" $*

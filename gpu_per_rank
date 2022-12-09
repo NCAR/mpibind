@@ -23,5 +23,5 @@ cores=()
 for i in `seq 0 $((cpsock/rank_per_sock)) $((cpsock - 1))`; do
 	cores+=("$i")
 done
-echo "rank: $grank, cores: ${cores[lrank]}, CUDA DEVICE: $CUDA_VISIBLE_DEVICES" >> mpibind.log
+echo "rank: $grank, cores: ${cores[lrank]}, CUDA DEVICE: $CUDA_VISIBLE_DEVICES" > $TMPDIR/mpibind.log.$grank.tmp
 numactl -C "${cores[lrank]}" $*
