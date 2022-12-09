@@ -18,7 +18,7 @@ Additional binding information will be written to a logfile (mpibind.log) in the
 
 2. gpu_per_rank
     
-   Spreads MPI ranks between NUMA domains on the socket and sets CUDA_VISIBLE_DEVICES to that each rank 
+   Spreads MPI ranks between NUMA domains on the socket and sets CUDA_VISIBLE_DEVICES so that each rank 
    is associated with a unique GPU. Assumes 1:1 mapping between ranks and GPUs.
 
 ## CPU Binding Example
@@ -111,11 +111,15 @@ Chunk info
   2:ncpus=64:mpiprocs=4:ngpus=4:ompthreads=1:mem=480gb:Qlist=a100
 -- -- -- --
 MPI exec line:
-  mpiexec -np 8 --map-by ppr:4:node --bind-to none --oversubscribe -x OMP_NUM_THREADS=1 gpu_per_rank ./xhpcg-gpu
+  mpiexec -np 8 --map-by ppr:4:node --bind-to none --oversubscribe -x OMP_NUM_THREADS=1 -x TMPDIR gpu_per_rank ./xhpcg-gpu
 -- -- -- --
 Binding Report:
 rank: 0, cores: 0, CUDA DEVICE: 0
 rank: 1, cores: 16, CUDA DEVICE: 1
 rank: 2, cores: 32, CUDA DEVICE: 2
 rank: 3, cores: 48, CUDA DEVICE: 3
+rank: 4, cores: 0, CUDA DEVICE: 0
+rank: 5, cores: 16, CUDA DEVICE: 1
+rank: 6, cores: 32, CUDA DEVICE: 2
+rank: 7, cores: 48, CUDA DEVICE: 3
 ```

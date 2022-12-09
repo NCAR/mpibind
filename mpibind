@@ -12,7 +12,7 @@ parse_chunk () {
 	if [ $LMOD_FAMILY_MPI == "cray-mpich" ]; then
            printf "%s" "-n $tot_mpi -ppn $mpi_per_node --cpu-bind none -env OMP_NUM_THREADS=$omp_per_node "
         elif [ $LMOD_FAMILY_MPI == "openmpi" ]; then
-           printf "%s" "-np $tot_mpi --map-by ppr:$mpi_per_node:node --bind-to none --oversubscribe -x OMP_NUM_THREADS=$omp_per_node "
+           printf "%s" "-np $tot_mpi --map-by ppr:$mpi_per_node:node --bind-to none --oversubscribe -x OMP_NUM_THREADS=$omp_per_node -x TMPDIR "
         else
            >&2 echo "Error: mpibind requires either cray-mpich or openmpi"
            exit 1
@@ -20,7 +20,6 @@ parse_chunk () {
 }
 
 args=$*
-pbs_job_id=$(ps -o comm= $PPID | awk '{split($0,a,".");print a[1]}')
 select_line=$PBS_SELECT
 chunks=`echo $select_line | awk '{split($0,a,"+")} END {for (elem in a) {print a[elem] } }'`
 mpicmd="mpiexec "
