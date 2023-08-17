@@ -8,14 +8,20 @@ elif [ $LMOD_FAMILY_MPI == "openmpi" ]; then
   grank=$OMPI_COMM_WORLD_RANK
   lrank=$OMPI_COMM_WORLD_LOCAL_RANK
   lsize=$OMPI_COMM_WORLD_LOCAL_SIZE
+elif [ $LMOD_FAMILY_MPI == "intel-mpi" ]; then
+  grank=$PMI_RANK
+  lrank=$MPI_LOCALRANKID
+  lsize=$MPI_LOCALNRANKS
 else
-  >&2 echo "Error: mpibind balanced requires either cray-mpich or openmpi"
+  >&2 echo "Error: mpibind balanced requires either cray-mpich or intel-mpi"
   exit 2
 fi
 
 if [[ -z "$OMP_NUM_THREADS" ]]; then 
   export OMP_NUM_THREADS=1
 fi
+export OMP_PLACES=threads 
+export OMP_PROC_BIND=close 
 nthds=$OMP_NUM_THREADS
 nsock=`lscpu | grep Socket | awk '{print $2}'`
 cpsock=`lscpu | grep "per sock" | awk '{print $4}'`

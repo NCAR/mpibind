@@ -1,22 +1,24 @@
 #!/bin/bash
 parse_chunk () {
-        chunk=$1
+   chunk=$1
 	nodes_in_chunk=`echo $chunk | sed "s/^\([0-9]\+\).*/\1/"`
-        mpi_per_node=`echo $chunk | sed "s/.*mpiprocs=\([0-9]\+\).*/\1/"`
+   mpi_per_node=`echo $chunk | sed "s/.*mpiprocs=\([0-9]\+\).*/\1/"`
 	if [[ $(echo $chunk | grep ompthreads) ]]; then
 	   omp_per_node=`echo $chunk | sed "s/.*ompthreads=\([0-9]\+\).*/\1/"`
 	else
 	   omp_per_node=1
-        fi
+   fi
 	tot_mpi=$((nodes_in_chunk*mpi_per_node))
 	if [ $LMOD_FAMILY_MPI == "cray-mpich" ]; then
-           printf "%s" "-n $tot_mpi -ppn $mpi_per_node --cpu-bind none -env OMP_NUM_THREADS=$omp_per_node "
-        elif [ $LMOD_FAMILY_MPI == "openmpi" ]; then
-           printf "%s" "-np $tot_mpi --map-by ppr:$mpi_per_node:node --bind-to none --oversubscribe -x OMP_NUM_THREADS=$omp_per_node -x TMPDIR "
-        else
-           >&2 echo "Error: mpibind requires either cray-mpich or openmpi"
-           exit 1
-        fi
+      printf "%s" "-n $tot_mpi -ppn $mpi_per_node --cpu-bind none -env OMP_NUM_THREADS=$omp_per_node "
+   elif [ $LMOD_FAMILY_MPI == "openmpi" ]; then
+      printf "%s" "-np $tot_mpi --map-by ppr:$mpi_per_node:node --bind-to none --oversubscribe -x OMP_NUM_THREADS=$omp_per_node -x TMPDIR "
+   elif [ $LMOD_FAMILY_MPI == "intel-mpi" ]; then
+      printf "%s" "-n $tot_mpi -ppn $mpi_per_node -genvall -genv I_MPI_PIN=no -genv OMP_NUM_THREADS=$omp_per_node "      
+   else
+      >&2 echo "Error: mpibind requires either cray-mpich or intel-mpi"
+      exit 1
+   fi
 }
 
 args=$*
@@ -30,10 +32,10 @@ for c in $chunks; do
    mpicmd+="$args : "
 done
 mpicmd=`echo "$mpicmd" | sed "s/: $//"`
-echo "-- -- -- --" >> mpibind.log
-echo "MPI exec line:" >> mpibind.log
-echo "  $mpicmd" >> mpibind.log
-echo "-- -- -- --" >> mpibind.log
+echo "-- -- -- --"     >> mpibind.log
+echo "MPI exec line:"  >> mpibind.log
+echo "  $mpicmd"       >> mpibind.log
+echo "-- -- -- --"     >> mpibind.log
 echo "Binding Report:" >> mpibind.log
 $mpicmd
 cat $TMPDIR/mpibind.log.*.tmp | sort -g -k 2 >> mpibind.log
