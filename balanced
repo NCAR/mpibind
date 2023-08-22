@@ -20,8 +20,12 @@ fi
 if [[ -z "$OMP_NUM_THREADS" ]]; then 
   export OMP_NUM_THREADS=1
 fi
-export OMP_PLACES=threads 
-export OMP_PROC_BIND=close 
+if [[ -z "$OMP_PLACES" ]]; then
+   export OMP_PLACES=threads
+fi
+if [[ -z "$OMP_PROC_BIND" ]]; then
+   export OMP_PROC_BIND=close
+fi
 nthds=$OMP_NUM_THREADS
 nsock=`lscpu | grep Socket | awk '{print $2}'`
 cpsock=`lscpu | grep "per sock" | awk '{print $4}'`
