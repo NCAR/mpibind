@@ -10,10 +10,13 @@ elif [ $LMOD_FAMILY_MPI == "openmpi" ]; then
   lrank=$OMPI_COMM_WORLD_LOCAL_RANK
   lsize=$OMPI_COMM_WORLD_LOCAL_SIZE
 else
-  >&2 echo "Error: mpibind gpu_per_rank requires either cray-mpich or openmpi"
+  >&2 echo "Error: mpibind gpu_per_rank requires cray-mpich"
   exit 2
 fi
 
+if [[ -z "$MPICH_OFI_NIC_POLICY" ]]; then
+   export MPICH_OFI_NIC_POLICY=GPU
+fi
 export CUDA_VISIBLE_DEVICES=$((lrank % 4))
 
 nsock=`lscpu | grep Socket | awk '{print $2}'`
