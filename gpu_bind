@@ -17,7 +17,6 @@ fi
 if [[ -z "$MPICH_OFI_NIC_POLICY" ]]; then
    export MPICH_OFI_NIC_POLICY=GPU
 fi
-export CUDA_VISIBLE_DEVICES=$((lrank % 4))
 
 nsock=`lscpu | grep Socket | awk '{print $2}'`
 cpsock=`lscpu | grep "per sock" | awk '{print $4}'`
@@ -26,5 +25,7 @@ cores=()
 for i in `seq 0 $((cpsock/rank_per_sock)) $((cpsock - 1))`; do
 	cores+=("$i")
 done
-echo "rank: $grank, cores: ${cores[lrank]}, CUDA DEVICE: $CUDA_VISIBLE_DEVICES" > $TMPDIR/mpibind.log.$grank.tmp
+export CUDA_VISIBLE_DEVICES=`nvidia-smi topo -c ${cores[lrank]} | egrep "^[0-9]+"`
+export MPIBIND_GPU_UUID=`nvidia-smi -L | grep "GPU $CUDA_VISIBLE_DEVICES:" | egrep -o "GPU-[a-f,0-9]+-[a-f,0-9]+-[a-f,0-9]+-[a-f,0-9]+-[a-f,0-9]+"`
+echo "rank: $grank, cores: ${cores[lrank]}, CUDA DEVICE: $CUDA_VISIBLE_DEVICES, UUID: $MPIBIND_GPU_UUID" > $TMPDIR/mpibind.log.$grank.tmp
 numactl -C "${cores[lrank]}" $*

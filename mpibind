@@ -21,6 +21,18 @@ parse_chunk () {
    fi
 }
 
+mpibind_style () {
+   chunk=$1
+   if [[ $(echo $chunk | grep ngpus) ]]; then
+      gpus_per_node=`echo $chunk | sed "s/.*ngpus=\([0-9]\+\).*/\1/"`
+      if [ "$gpus_per_node" -gt "0" ]; then    
+         printf "%s" "gpu_bind"
+      else
+         printf "%s" "cpu_bind"
+      fi
+   fi
+}
+
 args=$*
 select_line=$PBS_SELECT
 chunks=`echo $select_line | awk '{split($0,a,"+")} END {for (elem in a) {print a[elem] } }'`
@@ -29,7 +41,8 @@ echo "Chunk info" > mpibind.log
 for c in $chunks; do
    echo "  $c" >> mpibind.log
    mpicmd+=`parse_chunk $c`
-   mpicmd+="$args : "
+   mpicmd+=`mpibind_style $c`
+   mpicmd+=" $args : "
 done
 mpicmd=`echo "$mpicmd" | sed "s/: $//"`
 echo "-- -- -- --"     >> mpibind.log
