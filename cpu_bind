@@ -13,7 +13,7 @@ elif [ $LMOD_FAMILY_MPI == "intel-mpi" ]; then
   lrank=$MPI_LOCALRANKID
   lsize=$MPI_LOCALNRANKS
 else
-  >&2 echo "Error: mpibind balanced requires either cray-mpich or intel-mpi"
+  >&2 echo "Error: mpibind requires either cray-mpich or intel-mpi for binding CPU applications"
   exit 2
 fi
 

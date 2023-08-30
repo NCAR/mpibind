@@ -10,7 +10,7 @@ elif [ $LMOD_FAMILY_MPI == "openmpi" ]; then
   lrank=$OMPI_COMM_WORLD_LOCAL_RANK
   lsize=$OMPI_COMM_WORLD_LOCAL_SIZE
 else
-  >&2 echo "Error: mpibind gpu_per_rank requires cray-mpich"
+  >&2 echo "Error: mpibind requires cray-mpich for binding GPU applications"
   exit 2
 fi
 
