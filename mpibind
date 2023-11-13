@@ -1,4 +1,9 @@
 #!/bin/bash
+
+# base directory of this sctipt
+BASEDIR=`dirname -- "$( readlink -f -- "${BASH_SOURCE[0]}"; )"`
+
+# Parse a chunk of the PBS select line and return the mpiexec arguments
 parse_chunk () {
    chunk=$1
    nodes_in_chunk=`echo $chunk | sed "s/^\([0-9]\+\).*/\1/"`
@@ -21,18 +26,20 @@ parse_chunk () {
    fi
 }
 
+# determine if we are binding to cpus or gpus
 mpibind_style () {
    chunk=$1
    if [[ $(echo $chunk | grep ngpus) ]]; then
       gpus_per_node=`echo $chunk | sed "s/.*ngpus=\([0-9]\+\).*/\1/"`
       if [ "$gpus_per_node" -gt "0" ]; then    
-         printf "%s" "gpu_bind"
+         printf "%s" "$BASEDIR/gpu_bind"
       else
-         printf "%s" "cpu_bind"
+         printf "%s" "$BASEDIR/cpu_bind"
       fi
    fi
 }
 
+# generate the full mpiexec command based on the PBS select line and the MPI library
 args=$*
 select_line=$PBS_SELECT
 chunks=`echo $select_line | awk '{split($0,a,"+")} END {for (elem in a) {print a[elem] } }'`
