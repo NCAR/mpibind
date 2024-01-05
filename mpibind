@@ -3,6 +3,60 @@
 # base directory of this sctipt
 BASEDIR=`dirname -- "$( readlink -f -- "${BASH_SOURCE[0]}"; )"`
 
+# check if TMPDIR is set, if not set it the the users scratch space
+# and create it if it does not exist
+if [ -z "$TMPDIR" ]; then
+   export TMPDIR=/glade/derecho/scratch/$USER/tmp
+   mkdir -p $TMPDIR
+fi
+
+#----------- Function declarations ----------------#
+# print usage message and exit
+usage () {
+   echo "mpibind: an mpiexec wrapper that performs binding of MPI processes and"
+   echo "         OpenMP threads for CPU and GPU based codes. Rank and thread layout"
+   echo "         info is taken from the PBS select line and translated to appropriate"
+   echo "         options for the underlying MPI library. Supported MPI libraries are"
+   echo "         cray-mpich, openmpi, and intel-mpi."
+   echo ""
+   echo " Two modes of operation are supported:"
+   echo ""
+   echo "   1. Argument free mode:" 
+   echo "      mpibind <executable> [executable args]"
+   echo "      In this mode mpibind launches the executable with binding options"
+   echo "      based on the PBS select line and the loaded MPI library, with no"
+   echo "      additional arguments passed to the underlying mpiexec command."
+   echo ""
+   echo "   2. MPI Argument mode:" 
+   echo "      mpibind [mpibind options] -- <executable> [executable args]"
+   echo "      In this mode mpibind launches the executable with binding options"
+   echo "      based on the PBS select line and the loaded MPI library, and passes"
+   echo "      additional options through to the underlying mpiexec command. Certain"
+   echo "      options are recognized by mpibind and translated to the appropriate"
+   echo "      option for the specific mpiexec command being wrapped. Other arbitrary" 
+   echo "      options can be passed through to the mpiexec command as a string using"
+   echo "      the --pass-flags=\"flags\" option. These flags are not translated and"
+   echo "      the user must verify that they are correct for the loaded MPI library."
+   echo "      Note: in this mode the additional \"--\" is required to separate options"
+   echo "      intended for the mpiexec command from options intended for the executable."
+   echo ""
+   echo " Supported options:"
+   echo ""
+   echo "   -h, --help: print this help message"
+   echo ""
+   echo "   --label: prefix output with MPI rank"
+   echo ""
+   echo "   --line-buffer: line buffer MPI output"
+   echo ""
+   echo "   --pass-flags=\"flags\": pass arbitratry MPI flags through to the underlying"
+   echo "                         mpiexec command with no translation. Multiple flags"
+   echo "                         can be passed as a comma separated list. Supported"
+   echo "                         option flags must be long options if they contain"
+   echo "                         arguments (e.g. --opt=val). Short options are supported"
+   echo "                         if they do not contain arguments (e.g. -V)."
+   exit 0
+}
+
 # Parse a chunk of the PBS select line and return the mpiexec arguments
 parse_chunk () {
    chunk=$1
@@ -39,17 +93,124 @@ mpibind_style () {
    fi
 }
 
+# determine argument free mode or argument parse mode
+arg_mode () {
+   argline=$1
+   unset mode
+   # if the first character of the first argument is a dash then
+   # assume we are in argument parse mode
+   fc="${argline:0:1}"
+   if [ "$fc" == "-" ]; then
+      mode="argparse"
+      # split out arguments intended for mpiexec from the exe
+      delimiter=" -- "
+      s=$argline$delimiter
+      declare -a arg_array=();
+      while [[ $s ]]; do
+         arg_array+=( "${s%%"$delimiter"*}" );
+         s=${s#*"$delimiter"};
+      done;
+      mpi_opt_line=${arg_array[0]}    # options to pass to the MPI library
+      exec_line=${arg_array[1]}       # executable and executable arguments
+      # split mpi_opt_line into an array of individual options
+      delimiter=" "
+      s=$mpi_opt_line$delimiter
+      declare -a mpi_opts=();
+      while [[ $s ]]; do
+         mpi_opts+=( "${s%%"$delimiter"*}" )
+         s=${s#*"$delimiter"}
+      done
+      # parse and translate the MPI options
+      parse_mpi_opts mpi_opts
+   else 
+      mode="argfree"
+      mpi_opt_line=""
+      exec_line=$1
+   fi
+}
+
+# parse MPI options and
+#   1. translate them to the underlying MPI library if possible
+#   2. pass through options without translation if requested
+#   3. error out if the option is not recognized or not supported
+parse_mpi_opts () {
+   # Array of MPI options that are recognized by mpibind and 
+   # can be translated between MPI libraries
+   declare -rA xlate_mpi_opt='(["--label","cray-mpich"]="--label"
+                               ["--label","openmpi"]="--output=tag"
+                               ["--label","intel-mpi"]="--prepend-rank"
+                               ["--line-buffer","cray-mpich"]="--line-buffer"
+                               ["--line-buffer","openmpi"]="--stream-buffering=1"
+                               ["--line-buffer","intel-mpi"]=""
+                               )'
+   # string of MPI options that will be passed to mpiexec
+   mpi_opt_str=""
+   local -n opt_arr=$1
+   n_opts=${#opt_arr[@]}
+   i=0
+   while [[ $i -lt $n_opts ]]; do
+      opt=${opt_arr[$i]}
+      case "$opt" in
+         --help | -h)
+            # print usage and exit
+            usage
+            ;;
+         --label)
+            # label MPI output by rank
+            xlated=${xlate_mpi_opt["$opt","$LMOD_FAMILY_MPI"]}
+            mpi_opt_str+="$xlated "
+            i=$((i+1))
+            ;;
+         --line-buffer)
+            # line buffed MPI output
+            xlated=${xlate_mpi_opt["$opt","$LMOD_FAMILY_MPI"]}
+            mpi_opt_str+="$xlated "
+            i=$((i+1))
+            ;;
+         --pass-flags=*)
+            # pass MPI flags through to the underlying MPI library
+            # no translation is performed, so the user must ensure that the 
+            # flags are valid for their loaded MPI library
+            
+            # strip off the leading --pass-flags=
+            flags=${opt#*=}
+            # split flags at commas
+            delimiter=","
+            s=$flags$delimiter
+            declare -a flag_array=();
+            while [[ $s ]]; do
+               flag_array+=( "${s%%"$delimiter"*}" )
+               s=${s#*"$delimiter"}
+            done
+            # add each flag to the mpi_opt_str
+            for flag in "${flag_array[@]}"; do
+               mpi_opt_str+="$flag "
+            done
+            i=$((i+1))
+            ;;
+         *)
+            # everything else -- print an error and exit
+            echo "unrecognized option: $opt"
+            exit 1
+            ;;
+      esac
+   done
+}
+#----------- End of function declarations / Start of main script --------------#
+
+# determine if we have arguments to parse and pass to the underlying MPI library
+arg_mode "$*"
+
 # generate the full mpiexec command based on the PBS select line and the MPI library
-args=$*
 select_line=$PBS_SELECT
 chunks=`echo $select_line | awk '{split($0,a,"+")} END {for (elem in a) {print a[elem] } }'`
-mpicmd="mpiexec "
+mpicmd="mpiexec $mpi_opt_str"
 echo "Chunk info" > mpibind.log
 for c in $chunks; do
    echo "  $c" >> mpibind.log
    mpicmd+=`parse_chunk $c`
    mpicmd+=`mpibind_style $c`
-   mpicmd+=" $args : "
+   mpicmd+=" $exec_line : "
 done
 mpicmd=`echo "$mpicmd" | sed "s/: $//"`
 echo "-- -- -- --"     >> mpibind.log
@@ -57,6 +218,8 @@ echo "MPI exec line:"  >> mpibind.log
 echo "  $mpicmd"       >> mpibind.log
 echo "-- -- -- --"     >> mpibind.log
 echo "Binding Report:" >> mpibind.log
+# execute the mpiexec command
 $mpicmd
+# collect the binding report and clean up
 cat $TMPDIR/mpibind.log.*.tmp | sort -g -k 2 >> mpibind.log
 rm $TMPDIR/mpibind.log.*.tmp
