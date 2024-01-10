@@ -17,7 +17,7 @@ else
   exit 2
 fi
 
-if [[ -z "$OMP_NUM_THREADS" ]]; then 
+if [[ -z "$OMP_NUM_THREADS" ]]; then
   export OMP_NUM_THREADS=1
 fi
 if [[ -z "$OMP_PLACES" ]]; then
