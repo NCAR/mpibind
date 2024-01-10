@@ -1,5 +1,11 @@
 #!/bin/bash
 
+if [ -z "$tmp_logfile" ]; then
+    echo "ERROR: tmp_logfile is undefined, it should be set by mpibind!"
+    echo "($0 is not intended to be called directly)"
+    exit 1
+fi
+
 if [ $LMOD_FAMILY_MPI == "cray-mpich" ]; then
   export MPICH_GPU_SUPPORT_ENABLED=1
   grank=$PMI_RANK
@@ -27,5 +33,5 @@ for i in `seq 0 $((cpsock/rank_per_sock)) $((cpsock - 1))`; do
 done
 export CUDA_VISIBLE_DEVICES=`nvidia-smi topo -c ${cores[lrank]} | egrep "^[0-9]+"`
 export MPIBIND_GPU_UUID=`nvidia-smi -L | grep "GPU $CUDA_VISIBLE_DEVICES:" | egrep -o "GPU-[a-f,0-9]+-[a-f,0-9]+-[a-f,0-9]+-[a-f,0-9]+-[a-f,0-9]+"`
-echo "rank: $grank, cores: ${cores[lrank]}, CUDA DEVICE: $CUDA_VISIBLE_DEVICES, UUID: $MPIBIND_GPU_UUID" > $TMPDIR/mpibind.log.$grank.tmp
+echo "rank: $grank, cores: ${cores[lrank]}, CUDA DEVICE: $CUDA_VISIBLE_DEVICES, UUID: $MPIBIND_GPU_UUID" > $tmp_logfile.rankinfo.$grank
 numactl -C "${cores[lrank]}" $*

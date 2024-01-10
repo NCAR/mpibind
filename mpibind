@@ -10,6 +10,12 @@ if [ -z "$TMPDIR" ]; then
    mkdir -p $TMPDIR
 fi
 
+# Create unique temporary logfiles, and export this variable
+# so that it is accessible to the subprocesses cpu_bind and gpu_bind
+export tmp_logfile=$(mktemp --tmpdir mpibind.tmp.XXXXXXXXXX)
+logfile="mpibind.log"
+rm -f $logfile
+
 #----------- Function declarations ----------------#
 # print usage message and exit
 usage () {
@@ -205,21 +211,22 @@ arg_mode "$*"
 select_line=$PBS_SELECT
 chunks=`echo $select_line | awk '{split($0,a,"+")} END {for (elem in a) {print a[elem] } }'`
 mpicmd="mpiexec $mpi_opt_str"
-echo "Chunk info" > mpibind.log
+echo "Chunk info" > $tmp_logfile
 for c in $chunks; do
-   echo "  $c" >> mpibind.log
+   echo "  $c" >> $tmp_logfile
    mpicmd+=`parse_chunk $c`
    mpicmd+=`mpibind_style $c`
    mpicmd+=" $exec_line : "
 done
 mpicmd=`echo "$mpicmd" | sed "s/: $//"`
-echo "-- -- -- --"     >> mpibind.log
-echo "MPI exec line:"  >> mpibind.log
-echo "  $mpicmd"       >> mpibind.log
-echo "-- -- -- --"     >> mpibind.log
-echo "Binding Report:" >> mpibind.log
+echo "-- -- -- --"     >> $tmp_logfile
+echo "MPI exec line:"  >> $tmp_logfile
+echo "  $mpicmd"       >> $tmp_logfile
+echo "-- -- -- --"     >> $tmp_logfile
+echo "Binding Report:" >> $tmp_logfile
 # execute the mpiexec command
 $mpicmd
 # collect the binding report and clean up
-cat $TMPDIR/mpibind.log.*.tmp | sort -g -k 2 >> mpibind.log
-rm $TMPDIR/mpibind.log.*.tmp
+cat $tmp_logfile.rankinfo.* | sort -g -k 2 >> $tmp_logfile
+rm -f $tmp_logfile.rankinfo.*
+mv $tmp_logfile $logfile
