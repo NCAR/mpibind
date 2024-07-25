@@ -46,21 +46,26 @@ nsock=`lscpu | grep Socket | awk '{print $2}'`
 cpsock=`lscpu | grep "per sock" | awk '{print $4}'`
 hardware_npcores=$((nsock*cpsock)) # total number of physical cores in the node (ignoring hyperthreads)
 # get the numactl view of the node
-nctl_corelist=`numactl -s | grep physcpubind | egrep -o "[0-9]+"`   # list of logical cores from numactl
-nctl_ncores=`echo $nctl_corelist | wc -w`                           # number of logical cores from numactl (will be even coming from PBS)
-nctl_npcores=`echo $((nctl_ncores/2))`                              # number of physical cores from numactl (safely divisible by 2)
+nctl_corelist=(`numactl -s | grep physcpubind | egrep -o "[0-9]+"`) # array of logical cores from numactl
+end=$(( ${#nctl_corelist[@]} / 2 ))                                 # end index for the physical cores
+nctl_pcorelist=("${nctl_corelist[@]:0:$end}")                       # array of physical cores from numactl
+nctl_npcores=${#nctl_pcorelist[@]}                                  # number of physical cores from numactl
 # check if the number of physical cores from numactl is consistent with the hardware view
-if [ $nctl_npcores -ne $hardware_npcores ]; then
+if [ $nctl_npcores -lt $hardware_npcores ]; then
   # bind for shared node usage
   # have rank 0 print a warning message about the shared node assumption
   if [ $grank -eq 0 ]; then
     echo "Warning: Assuming shared node usage and binding to $nctl_npcores of the $hardware_npcores available CPU cores"
   fi
   ranges=()
-  for i in `seq 0 $nthds $((nctl_npcores-1))`; do
-    ranges+=("$i-$((i+nthds-1))")
+  for ((i=0; i<$nctl_npcores; i+=$nthds)); do
+    rng="${nctl_pcorelist[i]}-${nctl_pcorelist[i+nthds-1]}"
+    ranges+=("$rng")
   done
-else
+  if [ $grank -eq 0 ]; then
+     echo "Ranges: ${ranges[@]}"
+  fi
+elif [ $nctl_npcores -eq $hardware_npcores ]; then
   # bind for exclusive node usage, bind with ranks split between sockets
   rank_per_sock=$((lsize/nsock + (lsize%nsock)))
   thrd_per_sock=$((rank_per_sock*nthds))
@@ -71,6 +76,9 @@ else
     s1ranges+=("$((i+cpsock))-$((i+cpsock+nthds-1))")
   done
   ranges=("${s0ranges[@]}" "${s1ranges[@]}")
+else
+  >&2 echo "Error: Inconsistent number of physical cores from numactl and hardware view"
+  exit 3
 fi
 
 echo "rank: $grank, cores: ${ranges[lrank]}" > $tmp_logfile.rankinfo.$grank
