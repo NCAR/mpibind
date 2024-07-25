@@ -3,18 +3,28 @@
 # base directory of this sctipt
 BASEDIR=`dirname -- "$( readlink -f -- "${BASH_SOURCE[0]}"; )"`
 
-# check if TMPDIR is set, if not set it the the users scratch space
-# and create it if it does not exist
-if [ -z "$TMPDIR" ]; then
-   export TMPDIR=/glade/derecho/scratch/$USER/tmp
-   mkdir -p $TMPDIR
+# only write log files for small jobs (i.e. <= 32000 ranks)
+totranks=$(wc -l $PBS_NODEFILE | awk '{print $1}')
+if [ $totranks -le 32000 ]; then
+   export enable_logs=1
+else
+   export enable_logs=0
 fi
 
-# Create unique temporary logfiles, and export this variable
-# so that it is accessible to the subprocesses cpu_bind and gpu_bind
-export tmp_logfile=$(mktemp --tmpdir mpibind.tmp.XXXXXXXXXX)
-logfile="mpibind.log"
-rm -f $logfile
+if [ $enable_logs -eq 1 ]; then
+   # check if TMPDIR is set, if not set it the the users scratch space
+   # and create it if it does not exist
+   if [ -z "$TMPDIR" ]; then
+      export TMPDIR=/glade/derecho/scratch/$USER/tmp
+   fi
+   mkdir -p $TMPDIR
+
+   # Create unique temporary logfiles, and export this variable
+   # so that it is accessible to the subprocesses cpu_bind and gpu_bind
+   export tmp_logdir=$(mktemp --tmpdir -d mpibind.tmpdir.XXXXXXXXXX)
+   logfile=mpibind.`echo $PBS_JOBID | sed "s/\./ /g" | awk '{print $1}'`.log
+   rm -f $logfile
+fi
 
 #----------- Function declarations ----------------#
 # print usage message and exit
@@ -211,22 +221,31 @@ arg_mode "$*"
 select_line=$PBS_SELECT
 chunks=`echo $select_line | awk '{split($0,a,"+")} END {for (elem in a) {print a[elem] } }'`
 mpicmd="mpiexec $mpi_opt_str"
-echo "Chunk info" > $tmp_logfile
+if [ $enable_logs -eq 1 ]; then
+   echo "Chunk info" > $tmp_logdir/logfile
+fi
 for c in $chunks; do
-   echo "  $c" >> $tmp_logfile
+   if [ $enable_logs -eq 1 ]; then
+      echo "  $c" >> $tmp_logdir/logfile
+   fi
    mpicmd+=`parse_chunk $c`
    mpicmd+=`mpibind_style $c`
    mpicmd+=" $exec_line : "
 done
 mpicmd=`echo "$mpicmd" | sed "s/: $//"`
-echo "-- -- -- --"     >> $tmp_logfile
-echo "MPI exec line:"  >> $tmp_logfile
-echo "  $mpicmd"       >> $tmp_logfile
-echo "-- -- -- --"     >> $tmp_logfile
-echo "Binding Report:" >> $tmp_logfile
+if [ $enable_logs -eq 1 ]; then
+   echo "-- -- -- --"     >> $tmp_logdir/logfile
+   echo "MPI exec line:"  >> $tmp_logdir/logfile
+   echo "  $mpicmd"       >> $tmp_logdir/logfile
+   echo "-- -- -- --"     >> $tmp_logdir/logfile
+   echo "Binding Report:" >> $tmp_logdir/logfile
+fi
 # execute the mpiexec command
 $mpicmd
-# collect the binding report and clean up
-cat $tmp_logfile.rankinfo.* | sort -g -k 2 >> $tmp_logfile
-rm -f $tmp_logfile.rankinfo.*
-mv $tmp_logfile $logfile
+
+# collect the binding report and clean up the temporary logfiles
+if [ $enable_logs -eq 1 ]; then
+   cat $tmp_logdir/rankinfo.* | sort -g -k 2 >> $tmp_logdir/logfile
+   mv $tmp_logdir/logfile $logfile
+   rm -rf $tmp_logdir
+fi

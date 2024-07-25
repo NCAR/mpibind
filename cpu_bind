@@ -1,10 +1,12 @@
 #!/bin/bash
 
-# tmp_logfile should be set int the mpibind calling script
-if [ -z "$tmp_logfile" ]; then
-    echo "ERROR: tmp_logfile is undefined, it should be set by mpibind!"
+# tmp_logdir should be set int the mpibind calling script
+if [ $enable_logs -eq 1 ]; then
+  if [ -z "$tmp_logdir" ]; then
+    echo "ERROR: tmp_logdir is undefined, it should be set by mpibind!"
     echo "($0 is not intended to be called directly)"
     exit 1
+  fi
 fi
 
 # get rank info depending on the MPI library being used
@@ -62,9 +64,7 @@ if [ $nctl_npcores -lt $hardware_npcores ]; then
     rng="${nctl_pcorelist[i]}-${nctl_pcorelist[i+nthds-1]}"
     ranges+=("$rng")
   done
-  if [ $grank -eq 0 ]; then
-     echo "Ranges: ${ranges[@]}"
-  fi
+  
 elif [ $nctl_npcores -eq $hardware_npcores ]; then
   # bind for exclusive node usage, bind with ranks split between sockets
   rank_per_sock=$((lsize/nsock + (lsize%nsock)))
@@ -81,5 +81,7 @@ else
   exit 3
 fi
 
-echo "rank: $grank, cores: ${ranges[lrank]}" > $tmp_logfile.rankinfo.$grank
+if [ $enable_logs -eq 1 ]; then
+  echo "rank: $grank, cores: ${ranges[lrank]}" > $tmp_logdir/rankinfo.$grank
+fi
 numactl -C "${ranges[lrank]}" $*
