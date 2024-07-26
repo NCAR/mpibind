@@ -12,8 +12,8 @@ else
 fi
 
 if [ $enable_logs -eq 1 ]; then
-   # check if TMPDIR is set, if not set it the the users scratch space
-   # and create it if it does not exist
+   # check if TMPDIR is set, if not set it to the the users scratch space
+   # and make sure it is created
    if [ -z "$TMPDIR" ]; then
       export TMPDIR=/glade/derecho/scratch/$USER/tmp
    fi
