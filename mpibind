@@ -60,9 +60,17 @@ usage () {
    echo ""
    echo "   -h, --help: print this help message"
    echo ""
+   echo "   --ddt: launch bound application with the DDT debugger"
+   echo ""
+   echo "   --ddt-flags=\"flags\": pass flags through to DDT (see --pass-flags for syntax)"
+   echo ""
    echo "   --label: prefix output with MPI rank"
    echo ""
    echo "   --line-buffer: line buffer MPI output"
+   echo ""
+   echo "   --map: launch bound application with the MAP profiler"
+   echo ""
+   echo "   --map-flags=\"flags\": pass flags through to DDT (see --pass-flags for syntax)"
    echo ""
    echo "   --pass-flags=\"flags\": pass arbitratry MPI flags through to the underlying"
    echo "                         mpiexec command with no translation. Multiple flags"
@@ -162,7 +170,7 @@ parse_mpi_opts () {
    # string of MPI options that will be passed to mpiexec
    mpi_opt_str=""
    local -n opt_arr=$1
-   n_opts=${#opt_arr[@]}
+   n_opts=$((${#opt_arr[@]} - 1))
    i=0
    while [[ $i -lt $n_opts ]]; do
       opt=${opt_arr[$i]}
@@ -170,6 +178,10 @@ parse_mpi_opts () {
          --help | -h)
             # print usage and exit
             usage
+            ;;
+         --ddt)
+            launch_helper=ddt
+            i=$((i+1))
             ;;
          --label)
             # label MPI output by rank
@@ -183,7 +195,11 @@ parse_mpi_opts () {
             mpi_opt_str+="$xlated "
             i=$((i+1))
             ;;
-         --pass-flags=*)
+         --map)
+            launch_helper=map
+            i=$((i+1))
+            ;;
+         --pass-flags=*|--ddt-flags=*|--map-flags=*)
             # pass MPI flags through to the underlying MPI library
             # no translation is performed, so the user must ensure that the
             # flags are valid for their loaded MPI library
@@ -200,7 +216,14 @@ parse_mpi_opts () {
             done
             # add each flag to the mpi_opt_str
             for flag in "${flag_array[@]}"; do
-               mpi_opt_str+="$flag "
+               case "$opt" in
+                  --pass*)
+                     mpi_opt_str+="$flag "
+                     ;;
+                  --ddt*|--map*)
+                     helper_opt_str+="$flag "
+                     ;;
+               esac
             done
             i=$((i+1))
             ;;
@@ -220,7 +243,17 @@ arg_mode "$*"
 # generate the full mpiexec command based on the PBS select line and the MPI library
 select_line=$PBS_SELECT
 chunks=`echo $select_line | awk '{split($0,a,"+")} END {for (elem in a) {print a[elem] } }'`
-mpicmd="mpiexec $mpi_opt_str"
+
+if [ -n "$launch_helper" ]; then
+   if ! which $launch_helper 2> /dev/null; then
+       echo "$launch_helper not in PATH. Load a linaro-forge module and try again."
+       exit 1
+   fi
+   mpicmd="$launch_helper $helper_opt_str mpiexec $mpi_opt_str"
+else
+   mpicmd="mpiexec $mpi_opt_str"
+fi
+
 if [ $enable_logs -eq 1 ]; then
    echo "Chunk info" > $tmp_logdir/logfile
 fi
