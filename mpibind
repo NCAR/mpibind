@@ -170,7 +170,7 @@ parse_mpi_opts () {
    # string of MPI options that will be passed to mpiexec
    mpi_opt_str=""
    local -n opt_arr=$1
-   n_opts=$((${#opt_arr[@]} - 1))
+   n_opts=${#opt_arr[@]}
    i=0
    while [[ $i -lt $n_opts ]]; do
       opt=${opt_arr[$i]}
@@ -246,8 +246,8 @@ chunks=`echo $select_line | awk '{split($0,a,"+")} END {for (elem in a) {print a
 
 if [ -n "$launch_helper" ]; then
    if ! which $launch_helper 2> /dev/null; then
-       echo "$launch_helper not in PATH. Load a linaro-forge module and try again."
-       exit 1
+       echo "Warning: $launch_helper not in PATH. Loading the default linaro-forge module."
+       module load linaro-forge
    fi
    mpicmd="$launch_helper $helper_opt_str mpiexec $mpi_opt_str"
 else

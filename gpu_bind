@@ -39,4 +39,4 @@ export MPIBIND_GPU_UUID=`nvidia-smi -L | grep "GPU $CUDA_VISIBLE_DEVICES:" | egr
 if [ $enable_logs -eq 1 ]; then
   echo "rank: $grank, cores: ${cores[lrank]}, CUDA DEVICE: $CUDA_VISIBLE_DEVICES, UUID: $MPIBIND_GPU_UUID" > $tmp_logdir/rankinfo.$grank
 fi
-numactl -C "${cores[lrank]}" $*
+exec numactl -C "${cores[lrank]}" $*

@@ -84,4 +84,4 @@ fi
 if [ $enable_logs -eq 1 ]; then
   echo "rank: $grank, cores: ${ranges[lrank]}" > $tmp_logdir/rankinfo.$grank
 fi
-numactl -C "${ranges[lrank]}" $*
+exec numactl -C "${ranges[lrank]}" $*
