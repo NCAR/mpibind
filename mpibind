@@ -180,7 +180,14 @@ parse_mpi_opts () {
             usage
             ;;
          --ddt)
+            # run a program, bound with mpibind, under the DDT debugger
             launch_helper=ddt
+            i=$((i+1))
+            ;;
+         --ddt-connect)
+            # DDT remote connect shortcut
+            launch_helper=ddt
+            helper_opt_str+="--connect "
             i=$((i+1))
             ;;
          --label)
@@ -196,7 +203,14 @@ parse_mpi_opts () {
             i=$((i+1))
             ;;
          --map)
+            # run a program, bound with mpibind, under the MAP profiler
             launch_helper=map
+            i=$((i+1))
+            ;;
+         --map-connect)
+            # MAP remote connect shortcut
+            launch_helper=map
+            helper_opt_str+="--connect "
             i=$((i+1))
             ;;
          --pass-flags=*|--ddt-flags=*|--map-flags=*)
