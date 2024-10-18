@@ -300,7 +300,7 @@ if [ $enable_logs -eq 1 ]; then
 fi
 
 # if debugging/profiling on GPUs, set CUDA_DEBUGGER_SOFTWARE_PREEMPTION=1
-if [ -n $launch_helper ]; then
+if [[ "$launch_helper" == "map" || "$launch_helper" == "ddt" ]]; then
    if [[ "$mpicmd" == *"gpu_bind"* ]]; then
       echo "Enabling CUDA_DEBUGGER_SOFTWARE_PREEMPTION for GPU debugging/profiling"
       export CUDA_DEBUGGER_SOFTWARE_PREEMPTION=1
