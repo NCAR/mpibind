@@ -298,6 +298,14 @@ if [ $enable_logs -eq 1 ]; then
    echo "-- -- -- --"     >> $tmp_logdir/logfile
    echo "Binding Report:" >> $tmp_logdir/logfile
 fi
+
+# if debugging/profiling on GPUs, set CUDA_DEBUGGER_SOFTWARE_PREEMPTION=1
+if [ -n $launch_helper ]; then
+   if [[ "$mpicmd" == *"gpu_bind"* ]]; then
+      echo "Enabling CUDA_DEBUGGER_SOFTWARE_PREEMPTION for GPU debugging/profiling"
+      export CUDA_DEBUGGER_SOFTWARE_PREEMPTION=1
+   fi
+fi
 # execute the mpiexec command
 $mpicmd
 
