@@ -235,7 +235,6 @@ if [ -z "$PBS_NODEFILE" ]; then
       usage
    fi
    echo "Error: PBS_NODEFILE is not set. mpibind expects to be run in a PBS job."
-   #usage()
    exit 1
 fi
 
@@ -270,9 +269,10 @@ select_line=$PBS_SELECT
 chunks=`echo $select_line | awk '{split($0,a,"+")} END {for (elem in a) {print a[elem] } }'`
 
 if [ -n "$launch_helper" ]; then
-   if ! which $launch_helper 2> /dev/null; then
-       echo "Warning: $launch_helper not in PATH. Loading the default linaro-forge module."
-       module load linaro-forge
+   if ! which $launch_helper >& /dev/null; then
+       module load linaro-forge 2> /dev/null
+       forge_ver=`ml 2>&1 | egrep -o "linaro-forge\/.+"`
+       echo "Warning: $launch_helper not in PATH. Loading the default linaro-forge module ($forge_ver)."
    fi
    mpicmd="$launch_helper $helper_opt_str mpiexec $mpi_opt_str"
 else
