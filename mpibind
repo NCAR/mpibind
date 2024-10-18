@@ -38,6 +38,10 @@ usage () {
    echo ""
    echo "   --ddt-flags=\"flags\": pass flags through to DDT (see --pass-flags for syntax)"
    echo ""
+   echo "   --ddt-connect: shorthand for --ddt --ddt-flags=\"--connect\""
+   echo ""
+   echo "   --ddt-offline: shorthand for --ddt --ddt-flags=\"--offline\""
+   echo ""
    echo "   --label: prefix output with MPI rank"
    echo ""
    echo "   --line-buffer: line buffer MPI output"
@@ -45,6 +49,10 @@ usage () {
    echo "   --map: launch bound application with the MAP profiler"
    echo ""
    echo "   --map-flags=\"flags\": pass flags through to DDT (see --pass-flags for syntax)"
+   echo ""
+   echo "   --map-connect: shorthand for --map --map-flags=\"--connect\""
+   echo ""
+   echo "   --map-profile: shorthand for --map --map-flags=\"--profile\""
    echo ""
    echo "   --pass-flags=\"flags\": pass arbitratry MPI flags through to the underlying"
    echo "                         mpiexec command with no translation. Multiple flags"
@@ -164,6 +172,12 @@ parse_mpi_opts () {
             helper_opt_str+="--connect "
             i=$((i+1))
             ;;
+         --ddt-offline)
+            # DDT offline mode
+            launch_helper=ddt
+            helper_opt_str+="--offline "
+            i=$((i+1))
+            ;;
          --label)
             # label MPI output by rank
             xlated=${xlate_mpi_opt["$opt","$LMOD_FAMILY_MPI"]}
@@ -185,6 +199,12 @@ parse_mpi_opts () {
             # MAP remote connect shortcut
             launch_helper=map
             helper_opt_str+="--connect "
+            i=$((i+1))
+            ;;
+         --map-profile)
+            # MAP offline mode
+            launch_helper=map
+            helper_opt_str+="--profile "
             i=$((i+1))
             ;;
          --pass-flags=*|--ddt-flags=*|--map-flags=*)
