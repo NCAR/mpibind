@@ -1,31 +1,5 @@
 #!/bin/bash
 
-# base directory of this sctipt
-BASEDIR=`dirname -- "$( readlink -f -- "${BASH_SOURCE[0]}"; )"`
-
-# only write log files for small jobs (i.e. <= 32000 ranks)
-totranks=$(wc -l $PBS_NODEFILE | awk '{print $1}')
-if [ $totranks -le 32000 ]; then
-   export enable_logs=1
-else
-   export enable_logs=0
-fi
-
-if [ $enable_logs -eq 1 ]; then
-   # check if TMPDIR is set, if not set it to the the users scratch space
-   # and make sure it is created
-   if [ -z "$TMPDIR" ]; then
-      export TMPDIR=/glade/derecho/scratch/$USER/tmp
-   fi
-   mkdir -p $TMPDIR
-
-   # Create unique temporary logfiles, and export this variable
-   # so that it is accessible to the subprocesses cpu_bind and gpu_bind
-   export tmp_logdir=$(mktemp --tmpdir -d mpibind.tmpdir.XXXXXXXXXX)
-   logfile=mpibind.`echo $PBS_JOBID | sed "s/\./ /g" | awk '{print $1}'`.log
-   rm -f $logfile
-fi
-
 #----------- Function declarations ----------------#
 # print usage message and exit
 usage () {
@@ -250,6 +224,43 @@ parse_mpi_opts () {
    done
 }
 #----------- End of function declarations / Start of main script --------------#
+
+# base directory of this sctipt
+BASEDIR=`dirname -- "$( readlink -f -- "${BASH_SOURCE[0]}"; )"`
+
+# check to see if PBS_NODEFILE is set
+# exit with an error, unless -h or --help is specified
+if [ -z "$PBS_NODEFILE" ]; then
+   if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+      usage
+   fi
+   echo "Error: PBS_NODEFILE is not set. mpibind expects to be run in a PBS job."
+   #usage()
+   exit 1
+fi
+
+# only write log files for small jobs (i.e. <= 32000 ranks)
+totranks=$(wc -l $PBS_NODEFILE | awk '{print $1}')
+if [ $totranks -le 32000 ]; then
+   export enable_logs=1
+else
+   export enable_logs=0
+fi
+
+if [ $enable_logs -eq 1 ]; then
+   # check if TMPDIR is set, if not set it to the the users scratch space
+   # and make sure it is created
+   if [ -z "$TMPDIR" ]; then
+      export TMPDIR=/glade/derecho/scratch/$USER/tmp
+   fi
+   mkdir -p $TMPDIR
+
+   # Create unique temporary logfiles, and export this variable
+   # so that it is accessible to the subprocesses cpu_bind and gpu_bind
+   export tmp_logdir=$(mktemp --tmpdir -d mpibind.tmpdir.XXXXXXXXXX)
+   logfile=mpibind.`echo $PBS_JOBID | sed "s/\./ /g" | awk '{print $1}'`.log
+   rm -f $logfile
+fi
 
 # determine if we have arguments to parse and pass to the underlying MPI library
 arg_mode "$*"
