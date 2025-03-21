@@ -46,12 +46,12 @@ nthds=$OMP_NUM_THREADS
 # get a hardware view of the node
 nsock=`lscpu | grep Socket | awk '{print $2}'`
 cpsock=`lscpu | grep "per sock" | awk '{print $4}'`
+tpcore=`lscpu | grep "per core" | awk '{print $4}'`
 hardware_npcores=$((nsock*cpsock)) # total number of physical cores in the node (ignoring hyperthreads)
 # get the numactl view of the node
-nctl_corelist=(`numactl -s | grep physcpubind | egrep -o "[0-9]+"`) # array of logical cores from numactl
-end=$(( ${#nctl_corelist[@]} / 2 ))                                 # end index for the physical cores
-nctl_pcorelist=("${nctl_corelist[@]:0:$end}")                       # array of physical cores from numactl
-nctl_npcores=${#nctl_pcorelist[@]}                                  # number of physical cores from numactl
+nctl_corelist=(`numactl -s | grep physcpubind | egrep -o "[0-9]+"`)                                  # array of logical cores from numactl
+nctl_pcorelist=(`echo "${nctl_corelist[@]}" | awk 'BEGIN{ RS=" " } $0 < max' max=$hardware_npcores`) # array of physical cores from numactl
+nctl_npcores=${#nctl_pcorelist[@]}                                                                   # number of physical cores from numactl
 # check if the number of physical cores from numactl is consistent with the hardware view
 if [ $nctl_npcores -lt $hardware_npcores ]; then
   # bind for shared node usage
@@ -66,19 +66,34 @@ if [ $nctl_npcores -lt $hardware_npcores ]; then
   done
   
 elif [ $nctl_npcores -eq $hardware_npcores ]; then
-  # bind for exclusive node usage, bind with ranks split between sockets
-  rank_per_sock=$((lsize/nsock + (lsize%nsock)))
-  thrd_per_sock=$((rank_per_sock*nthds))
-  s0ranges=()
-  s1ranges=()
-  for i in `seq 0 $nthds $((thrd_per_sock - 1))`; do
-    s0ranges+=("$i-$((i+nthds-1))")
-    s1ranges+=("$((i+cpsock))-$((i+cpsock+nthds-1))")
-  done
-  ranges=("${s0ranges[@]}" "${s1ranges[@]}")
+  # bind for exclusive node usage
+  # single socket case
+  if [ $nsock -eq 1 ]; then
+    rank_per_sock=$((lsize + (lsize%nsock)))
+    thrd_per_sock=$((rank_per_sock*nthds))
+    s0ranges=()
+    for i in `seq 0 $nthds $((thrd_per_sock - 1))`; do
+      s0ranges+=("$i-$((i+nthds-1))")
+    done
+    ranges=("${s0ranges[@]}")
+  # dual socket case
+  elif [ $nsock -eq 2 ]; then
+    rank_per_sock=$((lsize/nsock + (lsize%nsock)))
+    thrd_per_sock=$((rank_per_sock*nthds))
+    s0ranges=()
+    s1ranges=()
+    for i in `seq 0 $nthds $((thrd_per_sock - 1))`; do
+      s0ranges+=("$i-$((i+nthds-1))")
+      s1ranges+=("$((i+cpsock))-$((i+cpsock+nthds-1))")
+    done
+    ranges=("${s0ranges[@]}" "${s1ranges[@]}")
+  else
+    >&2 echo "Error: Unsupported number of sockets: $nsock"
+    exit 3
+  fi
 else
   >&2 echo "Error: Inconsistent number of physical cores from numactl and hardware view"
-  exit 3
+  exit 4
 fi
 
 if [ $enable_logs -eq 1 ]; then
