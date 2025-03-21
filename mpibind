@@ -288,9 +288,7 @@ arg_mode "$*"
 
 # generate the full mpiexec command based on the PBS select line and the MPI library
 select_line=$PBS_SELECT
-# debug
-echo "select_line: $select_line"
-# debug
+
 chunks=`echo $select_line | awk '{split($0,a,"+")} END {for (elem in a) {print a[elem] } }'`
 
 if [ -n "$launch_helper" ]; then
@@ -331,9 +329,6 @@ if [[ "$launch_helper" == "map" || "$launch_helper" == "ddt" ]]; then
       export CUDA_DEBUGGER_SOFTWARE_PREEMPTION=1
    fi
 fi
-# debug
-echo "mpi command: $mpicmd"
-# end debug
 
 # execute the mpiexec command
 $mpicmd
