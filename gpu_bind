@@ -19,7 +19,7 @@ elif [ $LMOD_FAMILY_MPI == "openmpi" ]; then
   lrank=$OMPI_COMM_WORLD_LOCAL_RANK
   lsize=$OMPI_COMM_WORLD_LOCAL_SIZE
 else
-  >&2 echo "Error: mpibind requires cray-mpich for binding GPU applications"
+  >&2 echo "Error: mpibind requires cray-mpich or openmpi for binding GPU applications"
   exit 2
 fi
 
@@ -30,11 +30,21 @@ fi
 nsock=`lscpu | grep Socket | awk '{print $2}'`
 cpsock=`lscpu | grep "per sock" | awk '{print $4}'`
 rank_per_sock=$((lsize/nsock + (lsize%nsock)))
+socket_rank=$((lrank % rank_per_sock))
+
 cores=()
-for i in `seq 0 $((cpsock/rank_per_sock)) $((cpsock - 1))`; do
+for i in `seq 0 $((cpsock/rank_per_sock)) $((nsock*cpsock - 1))`; do
 	cores+=("$i")
 done
-export CUDA_VISIBLE_DEVICES=`nvidia-smi topo -c ${cores[lrank]} | egrep "^[0-9]+"`
+
+local_gpu_list=`nvidia-smi topo -c ${cores[lrank]} | egrep -o "^[0-9]+|,\s[0-9]+" | sed "s/, //g"`
+local_gpus=()
+for i in $local_gpu_list; do
+  local_gpus+=("$i")
+done
+local_gpu=${local_gpus[socket_rank]}
+
+export CUDA_VISIBLE_DEVICES=$local_gpu
 export MPIBIND_GPU_UUID=`nvidia-smi -L | grep "GPU $CUDA_VISIBLE_DEVICES:" | egrep -o "GPU-[a-f,0-9]+-[a-f,0-9]+-[a-f,0-9]+-[a-f,0-9]+-[a-f,0-9]+"`
 if [ $enable_logs -eq 1 ]; then
   echo "rank: $grank, cores: ${cores[lrank]}, CUDA DEVICE: $CUDA_VISIBLE_DEVICES, UUID: $MPIBIND_GPU_UUID" > $tmp_logdir/rankinfo.$grank
