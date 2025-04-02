@@ -50,27 +50,50 @@ if [[ -z "$MPICH_OFI_NIC_POLICY" ]]; then
    export MPICH_OFI_NIC_POLICY=GPU
 fi
 
-# variables for binding calculations
-nsock=`lscpu | grep Socket | awk '{print $2}'`              # number of sockets
-cpsock=`lscpu | grep "per sock" | awk '{print $4}'`         # cores per socket
+# hardware view of the node
+nsock=`lscpu | grep Socket | awk '{print $2}'`
+cpsock=`lscpu | grep "per sock" | awk '{print $4}'`
 numanodes=`lscpu | grep "NUMA node(s)" | awk '{print $3}'`  # number of NUMA nodes
+hardware_npcores=$((nsock*cpsock))                          # total number of physical cores in the node (ignoring hyperthreads)
+hardware_ngpus=`ls /proc/driver/nvidia/gpus/ | wc -l`       # total number of GPUs in the node
+# the numactl view of the node
+nctl_corelist=(`numactl -s | grep physcpubind | egrep -o "[0-9]+"`)                                  # array of logical cores from numactl
+nctl_pcorelist=(`echo "${nctl_corelist[@]}" | awk 'BEGIN{ RS=" " } $0 < max' max=$hardware_npcores`) # array of physical cores from numactl
+nctl_npcores=${#nctl_pcorelist[@]}                                                                   # number of physical cores from numactl
+nvsmi_ngpus=`nvidia-smi -L | wc -l`                                                                  # number of GPUs assigned from nvidia-smi
 
-# generate a list of cores that will be used to bind ranks
-cores=()
-# about as simple as I can make it without losing generality
-corelist=`seq_alt_stride lsize $((cpsock*nsock/lsize)) $((cpsock*nsock%lsize != 0))`
-for i in $corelist; do
-  cores+=("$i")
-done
+# check if the number of physical cores from numactl is consistent with the hardware
+# and if the number of gpus from nvidia-smi is consistent with the hardware
+# to determine if we can bind for exclusive node usage and optimal affinity
+if [ $nctl_npcores -lt $hardware_npcores ] || [ $nvsmi_ngpus -lt $hardware_ngpus ]; then
+  # bind for shared node usage
+  # have rank 0 print a warning message about the shared node assumption
+  if [ $grank -eq 0 ]; then
+    echo "Binding for shared node usage on $nctl_npcores of the $hardware_npcores available CPU cores"
+    echo "                             and $nvsmi_ngpus of the $hardware_ngpus available GPUs. Affinity may not be optimal."
+  fi
+  cores=(${nctl_pcorelist[@]})
+  local_gpus=(`nvidia-smi -L | egrep -o "GPU\s+[0-9]+" | awk '{print $2}'`)
+  local_gpu=${local_gpus[lrank%${#local_gpus[@]}]}
+else
+  # bind for exclusive node usage
+  # generate a list of cores that will be used to bind ranks
+  cores=()
+  # about as simple as I can make it without losing generality
+  corelist=`seq_alt_stride lsize $((nctl_npcores/lsize)) $((nctl_npcores%lsize != 0))`
+  for i in $corelist; do
+    cores+=("$i")
+  done
 
-# List the GPUs with affinity for the core this rank will be bound to
-local_gpu_list=`nvidia-smi topo -c ${cores[lrank]} | sed s/,//g | egrep -v [a-z]`
-local_gpus=()
-for i in $local_gpu_list; do
-  local_gpus+=("$i")
-done
-# select the GPU for this rank.
-local_gpu=$((local_gpus[lrank%(lsize/numanodes)]))
+  # List the GPUs with affinity for the core this rank will be bound to
+  local_gpu_list=`nvidia-smi topo -c ${cores[lrank]} | sed s/,//g | egrep -v [a-z]`
+  local_gpus=()
+  for i in $local_gpu_list; do
+    local_gpus+=("$i")
+  done
+  # select the GPU for this rank.
+  local_gpu=$((local_gpus[lrank%(lsize/numanodes)]))
+fi
 
 # Restrict this rank to the selected GPU and bind to the selected core
 export CUDA_VISIBLE_DEVICES=$local_gpu
@@ -78,4 +101,5 @@ export MPIBIND_GPU_UUID=`nvidia-smi -L | grep "GPU $CUDA_VISIBLE_DEVICES:" | egr
 if [ $enable_logs -eq 1 ]; then
   echo "rank: $grank, cores: ${cores[lrank]}, CUDA DEVICE: $CUDA_VISIBLE_DEVICES, UUID: $MPIBIND_GPU_UUID" > $tmp_logdir/rankinfo.$grank
 fi
+
 exec numactl -C "${cores[lrank]}" $*
