@@ -56,7 +56,7 @@ if [ $nctl_npcores -lt $hardware_npcores ]; then
   # bind for shared node usage
   # have rank 0 print a warning message about the shared node assumption
   if [ $grank -eq 0 ]; then
-    echo "Binding for partial node usage using $nctl_npcores of the $hardware_npcores available CPU cores"
+    echo "Binding for partial node usage using $nctl_npcores of the $hardware_npcores available CPUs. Affinity may not be optimal."
   fi
   ranges=()
   for ((i=0; i<$nctl_npcores; i+=$nthds)); do
