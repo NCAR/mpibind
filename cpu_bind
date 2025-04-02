@@ -46,8 +46,7 @@ nthds=$OMP_NUM_THREADS
 # get a hardware view of the node
 nsock=`lscpu | grep Socket | awk '{print $2}'`
 cpsock=`lscpu | grep "per sock" | awk '{print $4}'`
-tpcore=`lscpu | grep "per core" | awk '{print $4}'`
-hardware_npcores=$((nsock*cpsock)) # total number of physical cores in the node (ignoring hyperthreads)
+hardware_npcores=$((nsock*cpsock))                    # total number of physical cores in the node (ignoring hyperthreads)
 # get the numactl view of the node
 nctl_corelist=(`numactl -s | grep physcpubind | egrep -o "[0-9]+"`)                                  # array of logical cores from numactl
 nctl_pcorelist=(`echo "${nctl_corelist[@]}" | awk 'BEGIN{ RS=" " } $0 < max' max=$hardware_npcores`) # array of physical cores from numactl
@@ -57,7 +56,7 @@ if [ $nctl_npcores -lt $hardware_npcores ]; then
   # bind for shared node usage
   # have rank 0 print a warning message about the shared node assumption
   if [ $grank -eq 0 ]; then
-    echo "Warning: Assuming shared node usage and binding to $nctl_npcores of the $hardware_npcores available CPU cores"
+    echo "Binding for partial node usage using $nctl_npcores of the $hardware_npcores available CPU cores"
   fi
   ranges=()
   for ((i=0; i<$nctl_npcores; i+=$nthds)); do
