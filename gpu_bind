@@ -21,7 +21,7 @@ seq_alt_stride() {
   echo
 }
 
-# tmp_logdir should be set int the mpibind calling script
+# tmp_logdir should be set in the mpibind calling script
 if [ $enable_logs -eq 1 ]; then
   if [ -z "$tmp_logdir" ]; then
       echo "ERROR: tmp_logdir is undefined, it should be set by mpibind!"
@@ -53,7 +53,6 @@ fi
 # hardware view of the node
 nsock=`lscpu | grep Socket | awk '{print $2}'`
 cpsock=`lscpu | grep "per sock" | awk '{print $4}'`
-numanodes=`lscpu | grep "NUMA node(s)" | awk '{print $3}'`  # number of NUMA nodes
 hardware_npcores=$((nsock*cpsock))                          # total number of physical cores in the node (ignoring hyperthreads)
 hardware_ngpus=`ls /proc/driver/nvidia/gpus/ | wc -l`       # total number of GPUs in the node
 # the numactl view of the node
@@ -92,7 +91,8 @@ else
     local_gpus+=("$i")
   done
   # select the GPU for this rank.
-  local_gpu=$((local_gpus[lrank%(lsize/numanodes)]))
+  gpu_index=$((lrank%${#local_gpus[@]}))
+  local_gpu=$((local_gpus[gpu_index]))
 fi
 
 # Restrict this rank to the selected GPU and bind to the selected core
