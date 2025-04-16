@@ -1,26 +1,5 @@
 #!/bin/bash
 
-# utility function to produce sequences with the possibility of
-# alternating strides. Needed when the number of ranks on a CPU
-# does not evenly divide the number of cores on a CPU.
-seq_alt_stride() {
-  local start=0
-  local count=$1
-  local stride1=$2
-  local stride2=$((stride1 + $3))
-  local current=$start
-
-  for ((i=0; i<count; i++)); do
-    printf "%d " "$current"
-    if (( i % 2 == 0 )); then
-      current=$(( current + stride1 ))
-    else
-      current=$(( current + stride2 ))
-    fi
-  done
-  echo
-}
-
 # tmp_logdir should be set in the mpibind calling script
 if [ $enable_logs -eq 1 ]; then
   if [ -z "$tmp_logdir" ]; then
@@ -55,7 +34,7 @@ nsock=`lscpu | grep Socket | awk '{print $2}'`
 cpsock=`lscpu | grep "per sock" | awk '{print $4}'`
 hardware_npcores=$((nsock*cpsock))                          # total number of physical cores in the node (ignoring hyperthreads)
 hardware_ngpus=`ls /proc/driver/nvidia/gpus/ | wc -l`       # total number of GPUs in the node
-# the numactl view of the node
+# the numactl and nvidia-smi view of the node
 nctl_corelist=(`numactl -s | grep physcpubind | egrep -o "[0-9]+"`)                                  # array of logical cores from numactl
 nctl_pcorelist=(`echo "${nctl_corelist[@]}" | awk 'BEGIN{ RS=" " } $0 < max' max=$hardware_npcores`) # array of physical cores from numactl
 nctl_npcores=${#nctl_pcorelist[@]}                                                                   # number of physical cores from numactl
@@ -74,25 +53,61 @@ if [ $nctl_npcores -lt $hardware_npcores ] || [ $nvsmi_ngpus -lt $hardware_ngpus
   cores=(${nctl_pcorelist[@]})
   local_gpus=(`nvidia-smi -L | egrep -o "GPU\s+[0-9]+" | awk '{print $2}'`)
   local_gpu=${local_gpus[lrank%${#local_gpus[@]}]}
+  local_core=${cores[lrank%${#cores[@]}]}
 else
   # bind for exclusive node usage
-  # generate a list of cores that will be used to bind ranks
-  cores=()
-  # about as simple as I can make it without losing generality
-  corelist=`seq_alt_stride lsize $((nctl_npcores/lsize)) $((nctl_npcores%lsize != 0))`
-  for i in $corelist; do
-    cores+=("$i")
+
+  # calculate the number of ranks bound to each GPU
+  # we are not assuming all GPUs have the same number of ranks bound to them
+  base=$((lsize/nvsmi_ngpus));
+  rem=$((lsize%nvsmi_ngpus));
+  
+  # the below nested loop creates a list of the GPUs local to each rank
+  local_gpus=()
+  rank=0;
+  for (( g=0; g<nvsmi_ngpus; g++ )); do
+    count=$base;
+    if [ $g -lt $rem ]; then
+      count=$(($count+1));
+    fi
+
+    for ((i=0; i<$count; i++)); do
+      local_gpus+=($g);
+      rank=$((rank+1));
+    done
+  done
+  # set the local GPU for this rank
+  local_gpu=${local_gpus[lrank]}
+
+  # find all the ranks that will be bound to this GPU
+  gpu_ranks=()
+  for r in `seq 0 $(( lsize - 1 ))`; do
+    if [ ${local_gpus[r]} -eq $local_gpu ]; then
+      gpu_ranks+=($r)
+    fi
   done
 
-  # List the GPUs with affinity for the core this rank will be bound to
-  local_gpu_list=`nvidia-smi topo -c ${cores[lrank]} | sed s/,//g | egrep -v [a-z]`
-  local_gpus=()
-  for i in $local_gpu_list; do
-    local_gpus+=("$i")
+  # find the cores with affinity for this GPU
+  local_cores=()
+  for c in `seq 0 $(( nctl_npcores - 1 ))`; do 
+    gpu=`nvidia-smi topo -c $c | egrep -o "^[0-9]+"`
+    if [ $gpu -eq $local_gpu ]; then
+      local_cores+=("$c")
+    fi
   done
-  # select the GPU for this rank.
-  gpu_index=$((lrank%${#local_gpus[@]}))
-  local_gpu=$((local_gpus[gpu_index]))
+
+  # Calculate an offset into the local_cores array so each rank is bound
+  # to a different core among the cores with affinity for this GPU
+  for r in `seq 0 ${#gpu_ranks[@]}`; do
+    if [ ${gpu_ranks[r]} -eq $lrank ]; then
+      core_index=$r
+      break
+    fi
+  done
+
+  # select the CPU core to bind this rank to
+  # this core has affinity to the local_gpu
+  local_core=${local_cores[core_index]}
 fi
 
 # Restrict this rank to the selected GPU and bind to the selected core
@@ -102,4 +117,4 @@ if [ $enable_logs -eq 1 ]; then
   echo "rank: $grank, cores: ${cores[lrank]}, CUDA DEVICE: $CUDA_VISIBLE_DEVICES, UUID: $MPIBIND_GPU_UUID" > $tmp_logdir/rankinfo.$grank
 fi
 
-exec numactl -C "${cores[lrank]}" $*
+exec numactl -C "$local_core" $*
