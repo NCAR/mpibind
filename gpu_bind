@@ -87,20 +87,26 @@ else
     fi
   done
 
-  # find the cores with affinity for this GPU
+  # Find the cores with affinity for this GPU. On some systems cores have affinity 
+  # for multiple GPUs. The pos_offset variable records which position the GPU 
+  # matched in the nvidia-smi topo output, and is used later to calculate an offset
+  # into the local_cores array to ensure unique core <--> GPU bindings
   local_cores=()
   for c in `seq 0 $(( nctl_npcores - 1 ))`; do 
-    gpu=`nvidia-smi topo -c $c | egrep -o "^[0-9]+"`
-    if [ $gpu -eq $local_gpu ]; then
-      local_cores+=("$c")
-    fi
+    gpus=(`nvidia-smi topo -c $c | egrep "^[0-9]+" | sed "s/,//g"`)
+    for i in `seq 0 $(( ${#gpus[@]} - 1 ))`; do
+      if [ "${gpus[$i]}" == "$local_gpu" ]; then
+        local_cores+=("$c")
+        pos_offset=$i
+      fi
+    done
   done
 
   # Calculate an offset into the local_cores array so each rank is bound
   # to a different core among the cores with affinity for this GPU
   for r in `seq 0 ${#gpu_ranks[@]}`; do
     if [ ${gpu_ranks[r]} -eq $lrank ]; then
-      core_index=$r
+      core_index=$(( (r + base*pos_offset) % ${#local_cores[@]} ))
       break
     fi
   done
