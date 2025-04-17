@@ -1,6 +1,6 @@
 # mpibind
-## MPI binding utilities for the NCAR Derecho system
-The mpibind utility is a universal tool for binding MPI applications on Derecho. It supports binding of hybrid MPI + OpenMP CPU applications as well as MPI-enabled GPU applications. It supports a "naked" MPI launch style where all relevant MPI rank, OpenMP thread, and GPU layout information is taken from the PBS select statement, and is not explicitly required on the MPI launch line. It also supports multiple MPI libraries utilizing identical launch syntax between Cray-MPICH, Intel MPI, MVAPICH, and OpenMPI. The binding does not rely on MPI library binding syntax, but instead uses the standard Linux tools like lscpu, numactl, and nvidia-smi.
+## MPI binding utilities for the NCAR Derecho and Casper systems
+The mpibind utility is a universal tool for binding MPI applications on Derecho and Casper. It supports binding of hybrid MPI + OpenMP CPU applications as well as MPI-enabled GPU applications. It supports a "naked" MPI launch style where all relevant MPI rank, OpenMP thread, and GPU layout information is taken from the PBS select statement, and is not explicitly required on the MPI launch line. It also supports multiple MPI libraries utilizing identical launch syntax between Cray-MPICH, Intel MPI, and OpenMPI. The binding does not rely on MPI library binding syntax, but instead uses the standard Linux tools like lscpu, numactl, and nvidia-smi.
 
 ## Usage
 mpibind \<application\>
