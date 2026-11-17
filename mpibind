@@ -330,8 +330,9 @@ if [[ "$launch_helper" == "map" || "$launch_helper" == "ddt" ]]; then
    fi
 fi
 
-# execute the mpiexec command
+# execute the mpiexec command, saving its exit status for the caller
 $mpicmd
+mpi_status=$?
 
 # collect the binding report and clean up the temporary logfiles
 if [ $enable_logs -eq 1 ]; then
@@ -339,3 +340,6 @@ if [ $enable_logs -eq 1 ]; then
    mv $tmp_logdir/logfile $logfile
    rm -rf $tmp_logdir
 fi
+
+# return the launch status, not the status of the report/cleanup steps above
+exit $mpi_status
